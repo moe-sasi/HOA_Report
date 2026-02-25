@@ -5,6 +5,7 @@
     "tests/fixtures/vendor_a.synthetic.xlsx",
     "tests/fixtures/vendor_b.synthetic.xlsx"
   ],
+  "vendor_type": "example_vendor",
   "output_path": "data/output.synthetic.xlsx",
   "run_sql": false
 }

@@ -20,6 +20,7 @@ class InputConfig:
     tape_path: Path
     template_path: Path
     vendor_paths: list[Path] = field(default_factory=list)
+    vendor_type: str = "example_vendor"
     output_path: Path = Path("data/output.xlsx")
     run_sql: bool = False
     sql: SqlConfig | None = None
@@ -44,6 +45,11 @@ def load_config(path: Path) -> InputConfig:
         raise ValueError("'vendor_paths' must be a list of strings")
     vendor_paths = [Path(item) for item in vendor_raw]
 
+    vendor_type_raw = raw.get("vendor_type", "example_vendor")
+    if not isinstance(vendor_type_raw, str) or not vendor_type_raw.strip():
+        raise ValueError("'vendor_type' must be a non-empty string")
+    vendor_type = vendor_type_raw
+
     output_path = Path(raw.get("output_path", "data/output.xlsx"))
     run_sql = bool(raw.get("run_sql", False))
 
@@ -64,6 +70,7 @@ def load_config(path: Path) -> InputConfig:
         tape_path=tape_path,
         template_path=template_path,
         vendor_paths=vendor_paths,
+        vendor_type=vendor_type,
         output_path=output_path,
         run_sql=run_sql,
         sql=sql_config,

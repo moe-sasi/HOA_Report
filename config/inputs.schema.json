@@ -20,6 +20,12 @@
       "items": { "type": "string" },
       "default": []
     },
+    "vendor_type": {
+      "type": "string",
+      "minLength": 1,
+      "default": "example_vendor",
+      "description": "Vendor extractor key used by the extractor registry"
+    },
     "output_path": {
       "type": "string",
       "default": "data/output.xlsx"
