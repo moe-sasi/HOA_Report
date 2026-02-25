@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 
+from hoa_report.models import build_hoa_extractor_df
 from hoa_report.qa import normalize_loan_id
 
 _LOAN_NUMBER_HEADER = "Loan Number"
@@ -48,23 +49,26 @@ def extract_semt_tape(tape_path: str | Path) -> tuple[pd.DataFrame, dict[str, An
 
     loan_number_column, resolution = _resolve_loan_number_column(raw_df)
     non_blank_loan_numbers = ~raw_df[loan_number_column].map(_is_blank)
-    loan_master_df = raw_df.loc[non_blank_loan_numbers].copy()
+    extracted_rows = raw_df.loc[non_blank_loan_numbers].copy()
 
-    loan_master_df["loan_id"] = loan_master_df[loan_number_column].map(normalize_loan_id)
-    duplicate_mask = loan_master_df["loan_id"].notna() & loan_master_df["loan_id"].duplicated(
-        keep=False
+    loan_ids = extracted_rows[loan_number_column].map(normalize_loan_id)
+    duplicate_mask = loan_ids.notna() & loan_ids.duplicated(keep=False)
+
+    canonical_hoa_df = build_hoa_extractor_df(
+        loan_ids=loan_ids.tolist(),
+        hoa_source="semt_tape",
+        hoa_source_file=str(tape_path),
     )
-    loan_master_df["is_duplicate_loan_id"] = duplicate_mask
 
-    duplicate_ids = sorted(loan_master_df.loc[duplicate_mask, "loan_id"].dropna().unique().tolist())
+    duplicate_ids = sorted(loan_ids.loc[duplicate_mask].dropna().unique().tolist())
     tape_qa = {
         "tape_path": str(tape_path),
         "input_row_count": int(len(raw_df)),
-        "loan_row_count": int(len(loan_master_df)),
+        "loan_row_count": int(len(canonical_hoa_df)),
         "dropped_blank_loan_number_rows": int((~non_blank_loan_numbers).sum()),
         "loan_number_column": str(loan_number_column),
         "loan_number_resolution": resolution,
         "duplicate_loan_id_count": int(duplicate_mask.sum()),
         "duplicate_loan_ids": duplicate_ids,
     }
-    return loan_master_df, tape_qa
+    return canonical_hoa_df, tape_qa

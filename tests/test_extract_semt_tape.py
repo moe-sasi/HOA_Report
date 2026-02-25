@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from hoa_report.extractors import extract_semt_tape
+from hoa_report.models import HOA_EXTRACTOR_COLUMNS, HOA_WIDE_CANONICAL_COLUMNS
 
 _TEST_TMP_DIR = Path("data/_test_tmp")
 
@@ -33,9 +34,14 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
 
     loan_master_df, tape_qa = extract_semt_tape(tape_path)
 
-    assert loan_master_df["A"].tolist() == ["first", "third", "fourth"]
+    assert loan_master_df.columns.tolist() == list(HOA_EXTRACTOR_COLUMNS)
     assert loan_master_df["loan_id"].tolist() == ["L1001", "AB22", "AB22"]
-    assert loan_master_df["is_duplicate_loan_id"].tolist() == [False, True, True]
+    assert loan_master_df["hoa_source"].tolist() == ["semt_tape", "semt_tape", "semt_tape"]
+    assert loan_master_df["hoa_source_file"].tolist() == [str(tape_path), str(tape_path), str(tape_path)]
+    for column in HOA_WIDE_CANONICAL_COLUMNS:
+        if column in {"hoa_source", "hoa_source_file"}:
+            continue
+        assert loan_master_df[column].isna().all()
 
     assert tape_qa["loan_number_resolution"] == "header"
     assert tape_qa["loan_number_column"] == "Loan Number"
@@ -61,9 +67,14 @@ def test_extract_semt_tape_falls_back_to_column_g() -> None:
 
     loan_master_df, tape_qa = extract_semt_tape(tape_path)
 
-    assert loan_master_df["A"].tolist() == ["row-1", "row-3"]
+    assert loan_master_df.columns.tolist() == list(HOA_EXTRACTOR_COLUMNS)
     assert loan_master_df["loan_id"].tolist() == ["LN1", "LN3"]
-    assert loan_master_df["is_duplicate_loan_id"].tolist() == [False, False]
+    assert loan_master_df["hoa_source"].tolist() == ["semt_tape", "semt_tape"]
+    assert loan_master_df["hoa_source_file"].tolist() == [str(tape_path), str(tape_path)]
+    for column in HOA_WIDE_CANONICAL_COLUMNS:
+        if column in {"hoa_source", "hoa_source_file"}:
+            continue
+        assert loan_master_df[column].isna().all()
 
     assert tape_qa["loan_number_resolution"] == "column_g_fallback"
     assert tape_qa["loan_number_column"] == "G_value"
