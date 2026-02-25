@@ -5,11 +5,13 @@ from pathlib import Path
 import pandas as pd
 
 from hoa_report.extractors.base import VendorExtractorFn
+from hoa_report.extractors.dd_hoa import extract_dd_hoa
 from hoa_report.extractors.example_vendor import extract_example_vendor
 from hoa_report.models import enforce_hoa_extractor_columns
 from hoa_report.qa import assert_unique_vendor_ids, normalize_loan_id
 
 _EXTRACTOR_REGISTRY: dict[str, VendorExtractorFn] = {
+    "dd_hoa": extract_dd_hoa,
     "example_vendor": extract_example_vendor,
 }
 
@@ -66,9 +68,21 @@ def _enforce_vendor_output_contract(
         )
 
     assert_unique_vendor_ids(canonical_df, "loan_id")
-    canonical_df["hoa_source"] = vendor_type
-    canonical_df["hoa_source_file"] = str(Path(source_path))
+    source_mask = canonical_df["hoa_source"].map(_is_blank)
+    source_file_mask = canonical_df["hoa_source_file"].map(_is_blank)
+    canonical_df.loc[source_mask, "hoa_source"] = vendor_type
+    canonical_df.loc[source_file_mask, "hoa_source_file"] = str(Path(source_path))
     return canonical_df.reset_index(drop=True)
+
+
+def _is_blank(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, float) and value != value:
+        return True
+    return False
 
 
 def extract_vendor_file(vendor_type: str, path: str | Path) -> pd.DataFrame:
