@@ -15,6 +15,74 @@ _HOA_VALUE_COLUMNS: tuple[str, ...] = tuple(
     column for column in HOA_WIDE_CANONICAL_COLUMNS if column not in _SOURCE_COLUMNS
 )
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+TEMPLATE_REPORT_COLUMNS: tuple[str, ...] = (
+    "rwtLoanNo",
+    "SEMT ID",
+    "Bulk ID",
+    "MERS Number",
+    "Seller",
+    "Collateral ID",
+    "Altrernate ID",
+    "Primary Servicer",
+    "Servicer Loan Number",
+    "RWT Purchase Date",
+    "Property Address",
+    "Property City",
+    "Property State",
+    "Property Zip",
+    "HOA",
+    "HOA Monthly Payment",
+    "Securitized Balance",
+    "Securitized Next Due Date",
+    "DD Firm",
+    "Review Status",
+)
+_TEMPLATE_SOURCE_ALIASES: dict[str, tuple[str, ...]] = {
+    "rwtLoanNo": ("rwtLoanNo", "rwtloanno", "rwt_loan_no", "rwt_loan_number"),
+    "SEMT ID": ("SEMT ID", "semt_id", "loan_id", "loan_number"),
+    "Bulk ID": ("Bulk ID", "bulk_id", "bulkid"),
+    "MERS Number": ("MERS Number", "mers_number", "mers_no"),
+    "Seller": ("Seller", "seller", "originator"),
+    "Collateral ID": ("Collateral ID", "collateral_id"),
+    "Altrernate ID": (
+        "Altrernate ID",
+        "altrernate_id",
+        "alternate_id",
+        "alternative_id",
+    ),
+    "Primary Servicer": ("Primary Servicer", "primary_servicer", "servicer", "servicer_name"),
+    "Servicer Loan Number": (
+        "Servicer Loan Number",
+        "servicer_loan_number",
+        "servicer_loan_no",
+    ),
+    "RWT Purchase Date": ("RWT Purchase Date", "rwt_purchase_date", "purchase_date"),
+    "Property Address": ("Property Address", "property_address", "address", "street_address"),
+    "Property City": ("Property City", "property_city", "city"),
+    "Property State": ("Property State", "property_state", "state"),
+    "Property Zip": ("Property Zip", "property_zip", "zip", "zip_code", "zipcode"),
+    "HOA Monthly Payment": (
+        "hoa_monthly_dues_amount",
+        "HOA Monthly Payment",
+        "hoa_monthly_payment",
+        "monthly_hoa_dues",
+        "monthly_dues",
+    ),
+    "Securitized Balance": (
+        "Securitized Balance",
+        "securitized_balance",
+        "current_balance",
+        "upb",
+        "unpaid_principal_balance",
+    ),
+    "Securitized Next Due Date": (
+        "Securitized Next Due Date",
+        "securitized_next_due_date",
+        "next_due_date",
+    ),
+    "DD Firm": ("DD Firm", "dd_firm"),
+    "Review Status": ("Review Status", "review_status", "dd_review_type"),
+}
 
 
 @dataclass(frozen=True)
@@ -38,6 +106,48 @@ def _is_blank(value: object) -> bool:
 def _normalize_source_key(name: str) -> str:
     normalized = _NON_ALNUM.sub("", name.strip().lower())
     return normalized
+
+
+def _normalize_column_key(name: object) -> str:
+    return _NON_ALNUM.sub("", str(name).strip().lower())
+
+
+def _build_column_lookup(columns: Sequence[object]) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for column in columns:
+        key = _normalize_column_key(column)
+        if key and key not in lookup:
+            lookup[key] = str(column)
+    return lookup
+
+
+def _select_first_matching_series(
+    df: pd.DataFrame,
+    column_lookup: dict[str, str],
+    candidates: Sequence[str],
+) -> pd.Series:
+    for candidate in candidates:
+        key = _normalize_column_key(candidate)
+        resolved = column_lookup.get(key)
+        if resolved is not None:
+            return df[resolved].copy()
+    return pd.Series([None] * len(df), index=df.index, dtype=object)
+
+
+def _derive_hoa_flag(hoa_monthly_payment: pd.Series) -> pd.Series:
+    cleaned_values = hoa_monthly_payment.copy()
+    if cleaned_values.dtype == object:
+        cleaned_values = cleaned_values.map(
+            lambda value: value.replace("$", "").replace(",", "").strip()
+            if isinstance(value, str)
+            else value
+        )
+    numeric_values = pd.to_numeric(cleaned_values, errors="coerce")
+
+    hoa_flag = pd.Series([""] * len(hoa_monthly_payment), index=hoa_monthly_payment.index, dtype=object)
+    hoa_flag.loc[numeric_values > 0] = "Y"
+    hoa_flag.loc[numeric_values == 0] = "N"
+    return hoa_flag
 
 
 def _first_non_blank(values: pd.Series) -> str | None:
@@ -242,3 +352,27 @@ def merge_hoa_sources(
         }
 
     return merged_df.reset_index(drop=True), vendor_exceptions
+
+
+def build_template_report_df(loan_master_df_enriched: pd.DataFrame) -> pd.DataFrame:
+    """Map enriched loan master rows into the first 20 template report columns."""
+    column_lookup = _build_column_lookup(loan_master_df_enriched.columns)
+    mapped_series: dict[str, pd.Series] = {}
+    for output_column, aliases in _TEMPLATE_SOURCE_ALIASES.items():
+        mapped_series[output_column] = _select_first_matching_series(
+            loan_master_df_enriched,
+            column_lookup,
+            aliases,
+        )
+
+    report_df = pd.DataFrame(index=loan_master_df_enriched.index)
+    for output_column in TEMPLATE_REPORT_COLUMNS:
+        if output_column == "HOA":
+            report_df["HOA"] = _derive_hoa_flag(mapped_series["HOA Monthly Payment"])
+            continue
+        report_df[output_column] = mapped_series.get(
+            output_column,
+            pd.Series([None] * len(loan_master_df_enriched), index=loan_master_df_enriched.index, dtype=object),
+        )
+
+    return report_df.loc[:, TEMPLATE_REPORT_COLUMNS].copy()
