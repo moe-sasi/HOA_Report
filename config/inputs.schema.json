@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HOA Report Input Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tape_path", "template_path"],
+  "properties": {
+    "tape_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to source tape workbook"
+    },
+    "template_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to report template workbook"
+    },
+    "vendor_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "output_path": {
+      "type": "string",
+      "default": "data/output.xlsx"
+    },
+    "run_sql": {
+      "type": "boolean",
+      "default": false
+    },
+    "sql": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "database", "user", "password"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 5432 },
+        "database": { "type": "string", "minLength": 1 },
+        "user": { "type": "string", "minLength": 1 },
+        "password": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "run_sql": { "const": true }
+        }
+      },
+      "then": {
+        "required": ["sql"]
+      }
+    }
+  ]
+}
