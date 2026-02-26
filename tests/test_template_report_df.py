@@ -85,3 +85,16 @@ def test_build_template_report_df_supports_template_named_columns_and_money_stri
     assert report_df["HOA Monthly Payment"].tolist() == ["$1,250.50", "0", None]
     assert report_df["HOA"].tolist() == ["Y", "N", ""]
     assert report_df["rwtLoanNo"].isna().all()
+
+
+def test_build_template_report_df_prefers_loan_id_when_semt_id_column_is_blank() -> None:
+    loan_master_df_enriched = pd.DataFrame(
+        {
+            "loan_id": ["LN1", "LN2", "LN3"],
+            "SEMT ID": ["", None, "   "],
+        }
+    )
+
+    report_df = build_template_report_df(loan_master_df_enriched)
+
+    assert report_df["SEMT ID"].tolist() == ["LN1", "LN2", "LN3"]

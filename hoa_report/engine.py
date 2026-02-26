@@ -39,7 +39,7 @@ TEMPLATE_REPORT_COLUMNS: tuple[str, ...] = (
 )
 _TEMPLATE_SOURCE_ALIASES: dict[str, tuple[str, ...]] = {
     "rwtLoanNo": ("rwtLoanNo", "rwtloanno", "rwt_loan_no", "rwt_loan_number"),
-    "SEMT ID": ("SEMT ID", "semt_id", "loan_id", "loan_number"),
+    "SEMT ID": ("loan_id", "loan_number", "SEMT ID", "semt_id"),
     "Bulk ID": ("Bulk ID", "bulk_id", "bulkid"),
     "MERS Number": ("MERS Number", "mers_number", "mers_no"),
     "Seller": ("Seller", "seller", "originator"),

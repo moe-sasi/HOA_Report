@@ -1,8 +1,8 @@
 {
   "tape_path": "I:\\Residential_Conduit\\Sequoia\\Sequoia_2026-3\\Collateral\\SEMT_2026-3_02062026(RA).xlsx",
-  "template_path": "tests/fixtures/template.synthetic.xlsx",
+  "template_path": "C:\\Users\\moe.sasi\\OneDrive - Redwood Trust, Inc\\Documents\\Python\\HOA_Report\\SEMT {YYYY}-{SEMTID} - Servicer - HOA - TEMPLATE.xlsx",
   "vendor_paths": [
-    "tests/fixtures/vendor_a.synthetic.xlsx",
+    "I:\\Residential_Conduit\\Sequoia\\Sequoia_2026-3\\Due Diligence\\Clayton\\Unredacted\\SEMT 2026-3 Securitization Reports - 01.28.2026\\SEMT 2026-3 HOA - 01.28.2026.xlsx",
     "tests/fixtures/vendor_b.synthetic.xlsx"
   ],
   "vendor_type": "example_vendor",

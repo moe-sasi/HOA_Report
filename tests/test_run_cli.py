@@ -188,3 +188,41 @@ def test_cli_runs_sql_enrichment_with_connection_string(
     assert calls[0]["rows"] == 3
     assert calls[0]["query_path"] == Path("sql/hoa_enrich.sql")
     assert str(calls[0]["connection_string"]).startswith("mssql+pyodbc://@RTSQLGEN01/LOANDATA")
+
+
+def test_cli_errors_with_actionable_message_when_output_is_locked(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tape_path = _write_tape_fixture("run_cli.locked_output.tape.synthetic.xlsx")
+    template_path = _write_template_fixture("run_cli.locked_output.template.synthetic.xlsx")
+    vendor_path = _write_vendor_fixture(
+        "run_cli.locked_output.vendor.synthetic.xlsx",
+        [{"Loan Number": "L-1001", "Monthly Dues": 125.0}],
+    )
+    output_path = _TEST_TMP_DIR / "run_cli.locked_output.xlsx"
+
+    config_path = _write_config(
+        "run_cli.locked_output.config.json",
+        {
+            "tape_path": str(tape_path),
+            "template_path": str(template_path),
+            "vendor_paths": [str(vendor_path)],
+            "vendor_type": "example_vendor",
+            "output_path": str(output_path),
+        },
+    )
+
+    def _raise_permission_error(**kwargs: object) -> Path:
+        raise PermissionError(13, "Permission denied", str(kwargs["output_path"]))
+
+    monkeypatch.setattr("hoa_report.run.write_report_from_template", _raise_permission_error)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--config", str(config_path)])
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 2
+    assert "permission denied" in captured.err.lower()
+    assert "close the file" in captured.err.lower()
+    assert "--out" in captured.err

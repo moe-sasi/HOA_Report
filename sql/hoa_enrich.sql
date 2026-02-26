@@ -8,7 +8,7 @@ END;
 SELECT
     CAST(qrm.RWT_LOAN_NUMBER AS NVARCHAR(100)) AS loan_id,
     ltd.LoanNum,
-    '' AS 'SEMT ID',
+    tape_ids.loan_id AS 'SEMT ID',
     qrm.COMMITMENT_NUM AS 'Bulk ID',
     COALESCE(
         CAST(ltd.MERSLoanID AS NVARCHAR),

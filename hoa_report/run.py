@@ -133,13 +133,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         merged_df=merged_df,
         tape_raw_rows=int(tape_qa.get("input_row_count", len(tape_df))),
     )
-    output_path = write_report_from_template(
-        template_path=effective_config.template_path,
-        output_path=effective_config.output_path,
-        report_df=report_df,
-        qa_df=qa_df,
-        exceptions=vendor_exceptions,
-    )
+    try:
+        output_path = write_report_from_template(
+            template_path=effective_config.template_path,
+            output_path=effective_config.output_path,
+            report_df=report_df,
+            qa_df=qa_df,
+            exceptions=vendor_exceptions,
+        )
+    except PermissionError:
+        parser.error(
+            "Failed to write output workbook at "
+            f"'{effective_config.output_path}': permission denied. "
+            "Close the file if it is open in Excel or use --out to write to a different path."
+        )
+    except OSError as exc:
+        parser.error(f"Failed to write output workbook at '{effective_config.output_path}': {exc}")
 
     print(f"Output written to: {output_path}")
     _print_qa_summary(qa_dict)
