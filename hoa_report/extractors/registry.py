@@ -5,12 +5,14 @@ from pathlib import Path
 import pandas as pd
 
 from hoa_report.extractors.base import VendorExtractorFn
+from hoa_report.extractors.clayton import extract_clayton_hoa
 from hoa_report.extractors.dd_hoa import extract_dd_hoa
 from hoa_report.extractors.example_vendor import extract_example_vendor
 from hoa_report.models import enforce_hoa_extractor_columns
 from hoa_report.qa import assert_unique_vendor_ids, normalize_loan_id
 
 _EXTRACTOR_REGISTRY: dict[str, VendorExtractorFn] = {
+    "clayton": extract_clayton_hoa,
     "dd_hoa": extract_dd_hoa,
     "example_vendor": extract_example_vendor,
 }

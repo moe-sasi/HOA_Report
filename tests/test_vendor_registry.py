@@ -20,6 +20,7 @@ def _write_synthetic_vendor_fixture(filename: str, df: pd.DataFrame) -> Path:
 
 def test_registry_contains_example_vendor_extractor() -> None:
     assert "example_vendor" in list_vendor_extractors()
+    assert "clayton" in list_vendor_extractors()
 
 
 def test_extract_vendor_file_normalizes_ids_enforces_uniqueness_and_canonical_schema() -> None:

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pandas as pd
 import pytest
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from hoa_report.engine import TEMPLATE_REPORT_COLUMNS
 from hoa_report.run import main
@@ -22,8 +22,12 @@ def _write_config(filename: str, payload: dict[str, object]) -> Path:
 
 
 def _write_tape_fixture(filename: str) -> Path:
+    return _write_tape_fixture_with_ids(filename, ["L-1001", "L-1002", "L-1003"])
+
+
+def _write_tape_fixture_with_ids(filename: str, loan_numbers: list[str]) -> Path:
     tape_path = _TEST_TMP_DIR / filename
-    df = pd.DataFrame({"Loan Number": ["L-1001", "L-1002", "L-1003"]})
+    df = pd.DataFrame({"Loan Number": loan_numbers})
     df.to_excel(tape_path, index=False)
     return tape_path
 
@@ -31,6 +35,13 @@ def _write_tape_fixture(filename: str) -> Path:
 def _write_vendor_fixture(filename: str, rows: list[dict[str, object]]) -> Path:
     vendor_path = _TEST_TMP_DIR / filename
     pd.DataFrame(rows).to_excel(vendor_path, index=False)
+    return vendor_path
+
+
+def _write_clayton_vendor_fixture(filename: str, rows: list[dict[str, object]]) -> Path:
+    vendor_path = _TEST_TMP_DIR / filename
+    with pd.ExcelWriter(vendor_path) as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name="HOA")
     return vendor_path
 
 
@@ -226,3 +237,61 @@ def test_cli_errors_with_actionable_message_when_output_is_locked(
     assert "permission denied" in captured.err.lower()
     assert "close the file" in captured.err.lower()
     assert "--out" in captured.err
+
+
+def test_cli_clayton_fills_only_blank_hoa_fields_and_prints_clayton_summary(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tape_path = _write_tape_fixture_with_ids(
+        "run_cli.clayton.tape.synthetic.xlsx",
+        ["L-1001", "L-1002", "L-1003", "L-1004"],
+    )
+    template_path = _write_template_fixture("run_cli.clayton.template.synthetic.xlsx")
+    clayton_path = _write_clayton_vendor_fixture(
+        "run_cli.clayton.vendor.synthetic.xlsx",
+        [
+            {"Loan Number": "L-1001", "HOA Monthly Premium Amount": "$125.00"},
+            {"Loan Number": "L-1002", "HOA Monthly Premium Amount": "0"},
+            {"Loan Number": "L-1003", "HOA Monthly Premium Amount": None},
+            {"Loan Number": "X-9999", "HOA Monthly Premium Amount": "300"},
+        ],
+    )
+    output_path = _TEST_TMP_DIR / f"run_cli.clayton.output.{uuid4().hex}.xlsx"
+
+    config_path = _write_config(
+        "run_cli.clayton.config.json",
+        {
+            "tape_path": str(tape_path),
+            "template_path": str(template_path),
+            "vendor_paths": [str(clayton_path)],
+            "vendor_type": "clayton",
+            "output_path": str(output_path),
+        },
+    )
+
+    exit_code = main(["--config", str(config_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert output_path.exists()
+    assert "Clayton Match Summary" in captured.out
+    assert "Missing in Clayton" in captured.out
+    assert "Extra in Clayton" in captured.out
+
+    workbook = load_workbook(output_path)
+    report_sheet = workbook["Sheet1"]
+
+    hoa_col_idx = TEMPLATE_REPORT_COLUMNS.index("HOA") + 1
+    hoa_payment_col_idx = TEMPLATE_REPORT_COLUMNS.index("HOA Monthly Payment") + 1
+
+    assert report_sheet.cell(row=2, column=hoa_col_idx).value == "Y"
+    assert report_sheet.cell(row=2, column=hoa_payment_col_idx).value == 125.0
+
+    assert report_sheet.cell(row=3, column=hoa_col_idx).value == "N"
+    assert report_sheet.cell(row=3, column=hoa_payment_col_idx).value == 0.0
+
+    assert report_sheet.cell(row=4, column=hoa_col_idx).value in ("", None)
+    assert report_sheet.cell(row=4, column=hoa_payment_col_idx).value is None
+
+    assert report_sheet.cell(row=5, column=hoa_col_idx).value in ("", None)
+    assert report_sheet.cell(row=5, column=hoa_payment_col_idx).value is None
