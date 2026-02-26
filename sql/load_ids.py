@@ -1,4 +1,4 @@
-"""Optional SQL connectivity and query helpers."""
+from __future__ import annotations
 
 from hoa_report.sql.load_ids import (
     DEFAULT_TEMP_TABLE,
