@@ -10,6 +10,21 @@ Use a local config file with your runtime paths:
 python -m hoa_report.run --config config/local.json
 ```
 
+To enable SQL enrichment, set `run_sql` to `true` and provide a SQLAlchemy
+`mssql+pyodbc` connection string in config:
+
+```json
+{
+  "run_sql": true,
+  "sql": {
+    "connection_string": "mssql+pyodbc://@RTSQLGEN01/LOANDATA?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes",
+    "query_path": "sql/hoa_enrich.sql"
+  }
+}
+```
+
+SQL enrichment requires `pyodbc` (`sqlalchemy` is optional and will be used when installed).
+
 Path overrides are available at runtime:
 
 ```bash

@@ -7,5 +7,9 @@
   ],
   "vendor_type": "example_vendor",
   "output_path": "data/output.synthetic.xlsx",
-  "run_sql": false
+  "run_sql": true,
+  "sql": {
+    "connection_string": "mssql+pyodbc://@RTSQLGEN01/LOANDATA?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes",
+    "query_path": "sql/hoa_enrich.sql"
+  }
 }

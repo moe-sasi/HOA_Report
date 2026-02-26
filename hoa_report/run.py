@@ -9,6 +9,7 @@ from hoa_report.engine import build_template_report_df, merge_hoa_sources
 from hoa_report.extractors import extract_semt_tape, extract_vendor_file, get_vendor_extractor
 from hoa_report.io import write_report_from_template
 from hoa_report.qa import compute_qa
+from hoa_report.sql import merge_sql_enrichment_onto_tape, run_sql_enrichment_query
 
 _QA_PRINT_ORDER: tuple[tuple[str, str], ...] = (
     ("tape_rows", "Tape Rows"),
@@ -103,11 +104,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("Input path validation: OK")
 
     tape_df, tape_qa = extract_semt_tape(effective_config.tape_path)
+    loan_master_df = tape_df
+    if effective_config.run_sql:
+        if effective_config.sql is None:
+            parser.error("'sql' settings are required when 'run_sql' is true")
+        try:
+            sql_enrichment_df = run_sql_enrichment_query(
+                tape_df=tape_df,
+                connection_string=effective_config.sql.connection_string,
+                query_path=effective_config.sql.query_path,
+            )
+            loan_master_df = merge_sql_enrichment_onto_tape(tape_df, sql_enrichment_df)
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            parser.error(f"SQL enrichment failed: {exc}")
+
     vendor_frames = [
         extract_vendor_file(vendor_type, vendor_path) for vendor_path in effective_config.vendor_paths
     ]
     merged_df, vendor_exceptions = merge_hoa_sources(
-        loan_master_df=tape_df,
+        loan_master_df=loan_master_df,
         hoa_sources=vendor_frames,
         priority=[vendor_type],
     )

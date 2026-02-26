@@ -124,3 +124,67 @@ def test_cli_errors_when_override_path_does_not_exist(capsys: pytest.CaptureFixt
     captured = capsys.readouterr()
     assert exc_info.value.code == 2
     assert "do not exist" in captured.err
+
+
+def test_cli_runs_sql_enrichment_with_connection_string(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tape_path = _write_tape_fixture("run_cli.sql.tape.synthetic.xlsx")
+    template_path = _write_template_fixture("run_cli.sql.template.synthetic.xlsx")
+    vendor_a_path = _write_vendor_fixture(
+        "run_cli.sql.vendor_a.synthetic.xlsx",
+        [
+            {"Loan Number": "L-1001", "Monthly Dues": 125.0},
+            {"Loan Number": "L-1002", "Monthly Dues": 225.0},
+        ],
+    )
+    output_path = _TEST_TMP_DIR / f"run_cli.sql.output.{uuid4().hex}.xlsx"
+
+    config_path = _write_config(
+        "run_cli.sql.config.json",
+        {
+            "tape_path": str(tape_path),
+            "template_path": str(template_path),
+            "vendor_paths": [str(vendor_a_path)],
+            "vendor_type": "example_vendor",
+            "output_path": str(output_path),
+            "run_sql": True,
+            "sql": {
+                "connection_string": (
+                    "mssql+pyodbc://@RTSQLGEN01/LOANDATA?"
+                    "driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes"
+                ),
+                "query_path": "sql/hoa_enrich.sql",
+            },
+        },
+    )
+
+    calls: list[dict[str, object]] = []
+
+    def _mock_run_sql_enrichment_query(*, tape_df: pd.DataFrame, connection_string: str, query_path: Path) -> pd.DataFrame:
+        calls.append(
+            {
+                "rows": len(tape_df),
+                "connection_string": connection_string,
+                "query_path": query_path,
+            }
+        )
+        return pd.DataFrame(
+            {
+                "loan_id": ["L1001", "L1002", "L1003"],
+                "Seller": ["SQL Seller A", "SQL Seller B", "SQL Seller C"],
+            }
+        )
+
+    monkeypatch.setattr("hoa_report.run.run_sql_enrichment_query", _mock_run_sql_enrichment_query)
+
+    exit_code = main(["--config", str(config_path)])
+
+    _ = capsys.readouterr()
+    assert exit_code == 0
+    assert output_path.exists()
+    assert len(calls) == 1
+    assert calls[0]["rows"] == 3
+    assert calls[0]["query_path"] == Path("sql/hoa_enrich.sql")
+    assert str(calls[0]["connection_string"]).startswith("mssql+pyodbc://@RTSQLGEN01/LOANDATA")

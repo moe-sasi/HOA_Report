@@ -1,11 +1,15 @@
 {
-  "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+  "tape_path": "I:\\Residential_Conduit\\Sequoia\\Sequoia_2026-3\\Collateral\\SEMT_2026-3_02062026(RA).xlsx",
   "template_path": "tests/fixtures/template.synthetic.xlsx",
   "vendor_paths": [
     "tests/fixtures/vendor_a.synthetic.xlsx",
     "tests/fixtures/vendor_b.synthetic.xlsx"
   ],
   "vendor_type": "example_vendor",
-  "output_path": "data/output.synthetic.xlsx",
-  "run_sql": false
+  "output_path": "data/output.xlsx",
+  "run_sql": true,
+  "sql": {
+    "connection_string": "mssql+pyodbc://@RTSQLGEN01/LOANDATA?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes",
+    "query_path": "sql/hoa_enrich.sql"
+  }
 }

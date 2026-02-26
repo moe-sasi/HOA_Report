@@ -8,11 +8,8 @@ from typing import Any
 
 @dataclass
 class SqlConfig:
-    host: str
-    port: int
-    database: str
-    user: str
-    password: str
+    connection_string: str
+    query_path: Path = Path("sql/hoa_enrich.sql")
 
 
 @dataclass
@@ -58,12 +55,12 @@ def load_config(path: Path) -> InputConfig:
         sql_raw = raw.get("sql")
         if not isinstance(sql_raw, dict):
             raise ValueError("'sql' settings are required when 'run_sql' is true")
+        query_path_raw = sql_raw.get("query_path", "sql/hoa_enrich.sql")
+        if not isinstance(query_path_raw, str) or not query_path_raw.strip():
+            raise ValueError("'sql.query_path' must be a non-empty string when provided")
         sql_config = SqlConfig(
-            host=_require_str(sql_raw, "host"),
-            port=int(sql_raw.get("port", 5432)),
-            database=_require_str(sql_raw, "database"),
-            user=_require_str(sql_raw, "user"),
-            password=_require_str(sql_raw, "password"),
+            connection_string=_require_str(sql_raw, "connection_string"),
+            query_path=Path(query_path_raw),
         )
 
     return InputConfig(
@@ -79,6 +76,8 @@ def load_config(path: Path) -> InputConfig:
 
 def validate_paths(config: InputConfig) -> None:
     required_files = [config.tape_path, config.template_path, *config.vendor_paths]
+    if config.run_sql and config.sql is not None:
+        required_files.append(config.sql.query_path)
     missing = [str(file_path) for file_path in required_files if not file_path.exists()]
     if missing:
         raise FileNotFoundError(

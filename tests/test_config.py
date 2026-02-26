@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from hoa_report.config import load_config
 
 _TEST_TMP_DIR = Path("data/_test_tmp")
@@ -42,3 +44,59 @@ def test_load_config_defaults_vendor_type_when_missing() -> None:
 
     config = load_config(config_path)
     assert config.vendor_type == "example_vendor"
+
+
+def test_load_config_requires_sql_connection_string_when_run_sql_true() -> None:
+    config_path = _write_config(
+        "config.sql.required.json",
+        {
+            "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+            "template_path": "tests/fixtures/template.synthetic.xlsx",
+            "run_sql": True,
+            "sql": {"query_path": "sql/hoa_enrich.sql"},
+        },
+    )
+
+    with pytest.raises(ValueError, match="'connection_string' must be a non-empty string"):
+        load_config(config_path)
+
+
+def test_load_config_reads_sql_connection_string_and_default_query_path() -> None:
+    config_path = _write_config(
+        "config.sql.default_query_path.json",
+        {
+            "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+            "template_path": "tests/fixtures/template.synthetic.xlsx",
+            "run_sql": True,
+            "sql": {
+                "connection_string": (
+                    "mssql+pyodbc://@RTSQLGEN01/LOANDATA?"
+                    "driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes"
+                )
+            },
+        },
+    )
+
+    config = load_config(config_path)
+    assert config.sql is not None
+    assert config.sql.connection_string.startswith("mssql+pyodbc://@RTSQLGEN01/LOANDATA")
+    assert config.sql.query_path == Path("sql/hoa_enrich.sql")
+
+
+def test_load_config_reads_sql_query_path_override() -> None:
+    config_path = _write_config(
+        "config.sql.query_path_override.json",
+        {
+            "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+            "template_path": "tests/fixtures/template.synthetic.xlsx",
+            "run_sql": True,
+            "sql": {
+                "connection_string": "mssql+pyodbc://@RTSQLGEN01/LOANDATA",
+                "query_path": "sql/custom.sql",
+            },
+        },
+    )
+
+    config = load_config(config_path)
+    assert config.sql is not None
+    assert config.sql.query_path == Path("sql/custom.sql")
