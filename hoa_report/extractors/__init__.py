@@ -5,6 +5,7 @@ Each vendor should get its own module file in this package.
 
 from hoa_report.extractors.example_vendor import extract_example_vendor
 from hoa_report.extractors.clayton import extract_clayton_hoa
+from hoa_report.extractors.consolidated_analytics import extract_consolidated_analytics_hoa
 from hoa_report.extractors.dd_hoa import extract_dd_hoa
 from hoa_report.extractors.registry import (
     extract_vendor_file,
@@ -17,6 +18,7 @@ from hoa_report.extractors.semt import extract_semt_tape
 __all__ = [
     "extract_example_vendor",
     "extract_clayton_hoa",
+    "extract_consolidated_analytics_hoa",
     "extract_dd_hoa",
     "extract_semt_tape",
     "extract_vendor_file",

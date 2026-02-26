@@ -87,7 +87,14 @@ def test_write_report_from_template_creates_required_sheets_and_preserves_header
     )
 
     workbook = load_workbook(output_path)
-    assert {"Sheet1", "QA Summary", "Missing in Vendor", "Extra in Vendor"}.issubset(
+    assert {
+        "Sheet1",
+        "QA Summary",
+        "Missing in Vendor",
+        "Extra in Vendor",
+        "Missing in vendor_a",
+        "Extra in vendor_a",
+    }.issubset(
         set(workbook.sheetnames)
     )
 

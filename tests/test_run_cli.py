@@ -45,6 +45,13 @@ def _write_clayton_vendor_fixture(filename: str, rows: list[dict[str, object]]) 
     return vendor_path
 
 
+def _write_consolidated_vendor_fixture(filename: str, rows: list[dict[str, object]]) -> Path:
+    vendor_path = _TEST_TMP_DIR / filename
+    with pd.ExcelWriter(vendor_path) as writer:
+        pd.DataFrame(rows).to_excel(writer, index=False, sheet_name="Redwood Additional Data")
+    return vendor_path
+
+
 def _write_template_fixture(filename: str) -> Path:
     template_path = _TEST_TMP_DIR / filename
     workbook = Workbook()
@@ -239,7 +246,7 @@ def test_cli_errors_with_actionable_message_when_output_is_locked(
     assert "--out" in captured.err
 
 
-def test_cli_clayton_fills_only_blank_hoa_fields_and_prints_clayton_summary(
+def test_cli_clayton_fills_only_blank_hoa_fields_and_prints_qa_summary(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     tape_path = _write_tape_fixture_with_ids(
@@ -274,9 +281,8 @@ def test_cli_clayton_fills_only_blank_hoa_fields_and_prints_clayton_summary(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert output_path.exists()
-    assert "Clayton Match Summary" in captured.out
-    assert "Missing in Clayton" in captured.out
-    assert "Extra in Clayton" in captured.out
+    assert "QA Summary" in captured.out
+    assert "Match Rate" in captured.out
 
     workbook = load_workbook(output_path)
     report_sheet = workbook["Sheet1"]
@@ -295,3 +301,106 @@ def test_cli_clayton_fills_only_blank_hoa_fields_and_prints_clayton_summary(
 
     assert report_sheet.cell(row=5, column=hoa_col_idx).value in ("", None)
     assert report_sheet.cell(row=5, column=hoa_payment_col_idx).value is None
+
+
+def test_cli_runs_multi_vendor_with_collateral_id_mapping_and_priority(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tape_path = _write_tape_fixture_with_ids(
+        "run_cli.multi_vendor.tape.synthetic.xlsx",
+        ["L-1001", "L-1002", "L-1003"],
+    )
+    template_path = _write_template_fixture("run_cli.multi_vendor.template.synthetic.xlsx")
+    clayton_path = _write_clayton_vendor_fixture(
+        "run_cli.multi_vendor.clayton.synthetic.xlsx",
+        [
+            {"Loan Number": "L-1001", "HOA Monthly Premium Amount": "$125.00"},
+            {"Loan Number": "L-1002", "HOA Monthly Premium Amount": "$300.00"},
+        ],
+    )
+    consolidated_path = _write_consolidated_vendor_fixture(
+        "run_cli.multi_vendor.consolidated.synthetic.xlsx",
+        [
+            {"Loan ID": "C-2", "Monthly HOA Payment Amount": "$250.00"},
+            {"Loan ID": "C-3", "Monthly HOA Payment Amount": "0"},
+            {"Loan ID": "C-999", "Monthly HOA Payment Amount": "50"},
+        ],
+    )
+    output_path = _TEST_TMP_DIR / f"run_cli.multi_vendor.output.{uuid4().hex}.xlsx"
+
+    config_path = _write_config(
+        "run_cli.multi_vendor.config.json",
+        {
+            "tape_path": str(tape_path),
+            "template_path": str(template_path),
+            "vendors": [
+                {
+                    "name": "clayton",
+                    "type": "clayton",
+                    "path": str(clayton_path),
+                    "match_key": "loan_id",
+                },
+                {
+                    "name": "consolidated_analytics",
+                    "type": "consolidated_analytics",
+                    "path": str(consolidated_path),
+                    "match_key": "collateral_id",
+                },
+            ],
+            "vendor_priority": ["clayton", "consolidated_analytics"],
+            "output_path": str(output_path),
+            "run_sql": True,
+            "sql": {
+                "connection_string": (
+                    "mssql+pyodbc://@RTSQLGEN01/LOANDATA?"
+                    "driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes"
+                ),
+                "query_path": "sql/hoa_enrich.sql",
+            },
+        },
+    )
+
+    def _mock_run_sql_enrichment_query(
+        *,
+        tape_df: pd.DataFrame,
+        connection_string: str,
+        query_path: Path,
+    ) -> pd.DataFrame:
+        _ = tape_df, connection_string, query_path
+        return pd.DataFrame(
+            {
+                "loan_id": ["L1001", "L1002", "L1003"],
+                "Collateral ID": ["C1", "C2", "C3"],
+            }
+        )
+
+    monkeypatch.setattr("hoa_report.run.run_sql_enrichment_query", _mock_run_sql_enrichment_query)
+
+    exit_code = main(["--config", str(config_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert output_path.exists()
+    assert "QA Summary" in captured.out
+
+    workbook = load_workbook(output_path)
+    report_sheet = workbook["Sheet1"]
+
+    hoa_col_idx = TEMPLATE_REPORT_COLUMNS.index("HOA") + 1
+    hoa_payment_col_idx = TEMPLATE_REPORT_COLUMNS.index("HOA Monthly Payment") + 1
+
+    assert report_sheet.cell(row=2, column=hoa_col_idx).value == "Y"
+    assert report_sheet.cell(row=2, column=hoa_payment_col_idx).value == 125.0
+
+    # Clayton has higher priority and should not be overwritten by consolidated.
+    assert report_sheet.cell(row=3, column=hoa_col_idx).value == "Y"
+    assert report_sheet.cell(row=3, column=hoa_payment_col_idx).value == 300.0
+
+    assert report_sheet.cell(row=4, column=hoa_col_idx).value == "N"
+    assert report_sheet.cell(row=4, column=hoa_payment_col_idx).value == 0.0
+
+    assert "Missing in clayton" in workbook.sheetnames
+    assert "Extra in clayton" in workbook.sheetnames
+    assert any(name.startswith("Missing in consolidated") for name in workbook.sheetnames)
+    assert any(name.startswith("Extra in consolidated") for name in workbook.sheetnames)

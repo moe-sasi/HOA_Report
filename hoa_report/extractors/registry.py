@@ -6,13 +6,15 @@ import pandas as pd
 
 from hoa_report.extractors.base import VendorExtractorFn
 from hoa_report.extractors.clayton import extract_clayton_hoa
+from hoa_report.extractors.consolidated_analytics import extract_consolidated_analytics_hoa
 from hoa_report.extractors.dd_hoa import extract_dd_hoa
 from hoa_report.extractors.example_vendor import extract_example_vendor
-from hoa_report.models import enforce_hoa_extractor_columns
+from hoa_report.models import HOA_WIDE_CANONICAL_COLUMNS
 from hoa_report.qa import assert_unique_vendor_ids, normalize_loan_id
 
 _EXTRACTOR_REGISTRY: dict[str, VendorExtractorFn] = {
     "clayton": extract_clayton_hoa,
+    "consolidated_analytics": extract_consolidated_analytics_hoa,
     "dd_hoa": extract_dd_hoa,
     "example_vendor": extract_example_vendor,
 }
@@ -53,28 +55,34 @@ def _enforce_vendor_output_contract(
     *,
     vendor_type: str,
     source_path: str | Path,
+    id_column: str = "loan_id",
 ) -> pd.DataFrame:
-    if "loan_id" not in extracted_df.columns:
+    if id_column not in extracted_df.columns:
         raise ValueError(
-            f"Vendor extractor '{vendor_type}' must return a DataFrame containing 'loan_id'"
+            f"Vendor extractor '{vendor_type}' must return a DataFrame containing '{id_column}'"
         )
 
-    canonical_df = enforce_hoa_extractor_columns(extracted_df)
-    canonical_df["loan_id"] = canonical_df["loan_id"].map(normalize_loan_id)
+    canonical_df = extracted_df.copy()
+    required_columns = [id_column, *HOA_WIDE_CANONICAL_COLUMNS]
+    for column in required_columns:
+        if column not in canonical_df.columns:
+            canonical_df[column] = None
 
-    invalid_id_count = int(canonical_df["loan_id"].isna().sum())
+    canonical_df[id_column] = canonical_df[id_column].map(normalize_loan_id)
+
+    invalid_id_count = int(canonical_df[id_column].isna().sum())
     if invalid_id_count:
         raise ValueError(
             f"Vendor extractor '{vendor_type}' produced {invalid_id_count} blank/unparseable "
-            "loan_id value(s) after normalization"
+            f"'{id_column}' value(s) after normalization"
         )
 
-    assert_unique_vendor_ids(canonical_df, "loan_id")
+    assert_unique_vendor_ids(canonical_df, id_column)
     source_mask = canonical_df["hoa_source"].map(_is_blank)
     source_file_mask = canonical_df["hoa_source_file"].map(_is_blank)
     canonical_df.loc[source_mask, "hoa_source"] = vendor_type
     canonical_df.loc[source_file_mask, "hoa_source_file"] = str(Path(source_path))
-    return canonical_df.reset_index(drop=True)
+    return canonical_df.loc[:, required_columns].reset_index(drop=True)
 
 
 def _is_blank(value: object) -> bool:
@@ -87,7 +95,12 @@ def _is_blank(value: object) -> bool:
     return False
 
 
-def extract_vendor_file(vendor_type: str, path: str | Path) -> pd.DataFrame:
+def extract_vendor_file(
+    vendor_type: str,
+    path: str | Path,
+    *,
+    id_column: str = "loan_id",
+) -> pd.DataFrame:
     """Run a registered extractor and enforce canonical vendor output rules."""
     normalized_type = _normalize_vendor_type(vendor_type)
     extractor = get_vendor_extractor(normalized_type)
@@ -101,4 +114,5 @@ def extract_vendor_file(vendor_type: str, path: str | Path) -> pd.DataFrame:
         extracted_df,
         vendor_type=normalized_type,
         source_path=path,
+        id_column=id_column,
     )

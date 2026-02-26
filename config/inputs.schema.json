@@ -15,16 +15,54 @@
       "minLength": 1,
       "description": "Path to report template workbook"
     },
+    "vendors": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type", "path"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Logical vendor name used for QA and vendor priority ordering"
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Extractor registry key"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to vendor source file"
+          },
+          "match_key": {
+            "type": "string",
+            "enum": ["loan_id", "collateral_id"],
+            "default": "loan_id",
+            "description": "Vendor ID mapping strategy to tape loan population"
+          }
+        }
+      }
+    },
+    "vendor_priority": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Optional deterministic vendor fill order. Unlisted vendors are appended."
+    },
     "vendor_paths": {
       "type": "array",
       "items": { "type": "string" },
-      "default": []
+      "default": [],
+      "description": "Legacy single-type mode. Prefer vendors[]."
     },
     "vendor_type": {
       "type": "string",
       "minLength": 1,
       "default": "example_vendor",
-      "description": "Vendor extractor key used by the extractor registry"
+      "description": "Legacy single-type mode extractor key. Prefer vendors[]."
     },
     "output_path": {
       "type": "string",

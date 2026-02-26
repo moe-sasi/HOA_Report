@@ -145,6 +145,45 @@ def _build_exception_rows(
     return pd.DataFrame(rows, columns=["Vendor", "Loan ID"])
 
 
+def _build_vendor_exception_rows(
+    exception_values: Mapping[str, Any],
+    key: str,
+) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    raw_loan_ids = exception_values.get(key)
+    if isinstance(raw_loan_ids, str) or raw_loan_ids is None:
+        return pd.DataFrame(rows, columns=["Loan ID"])
+    if not isinstance(raw_loan_ids, list | tuple | set):
+        return pd.DataFrame(rows, columns=["Loan ID"])
+
+    for loan_id in raw_loan_ids:
+        if _is_blank(loan_id):
+            continue
+        rows.append({"Loan ID": str(loan_id).strip()})
+    return pd.DataFrame(rows, columns=["Loan ID"])
+
+
+def _resolve_vendor_sheet_title(prefix: str, vendor: str, existing_titles: set[str]) -> str:
+    base = f"{prefix} {vendor}".strip()
+    if len(base) <= 31 and base not in existing_titles:
+        existing_titles.add(base)
+        return base
+
+    truncated = base[:31]
+    if truncated not in existing_titles:
+        existing_titles.add(truncated)
+        return truncated
+
+    counter = 2
+    while True:
+        suffix = f" {counter}"
+        candidate = f"{base[:31 - len(suffix)]}{suffix}"
+        if candidate not in existing_titles:
+            existing_titles.add(candidate)
+            return candidate
+        counter += 1
+
+
 def write_report_from_template(
     template_path: str | Path,
     output_path: str | Path,
@@ -220,6 +259,27 @@ def write_report_from_template(
         _build_exception_rows(safe_exceptions, "extra_in_vendor"),
         default_headers=["Vendor", "Loan ID"],
     )
+
+    existing_titles = {"Sheet1", "QA Summary", "Missing in Vendor", "Extra in Vendor"}
+    for vendor, exception_values in safe_exceptions.items():
+        missing_vendor_sheet = _replace_sheet(
+            workbook,
+            _resolve_vendor_sheet_title("Missing in", str(vendor), existing_titles),
+        )
+        extra_vendor_sheet = _replace_sheet(
+            workbook,
+            _resolve_vendor_sheet_title("Extra in", str(vendor), existing_titles),
+        )
+        _write_dataframe(
+            missing_vendor_sheet,
+            _build_vendor_exception_rows(exception_values, "missing_in_vendor"),
+            default_headers=["Loan ID"],
+        )
+        _write_dataframe(
+            extra_vendor_sheet,
+            _build_vendor_exception_rows(exception_values, "extra_in_vendor"),
+            default_headers=["Loan ID"],
+        )
 
     output.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output)
