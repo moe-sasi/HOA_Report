@@ -1,0 +1,11 @@
+{
+  "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+  "template_path": "tests/fixtures/template.synthetic.xlsx",
+  "vendor_paths": [
+    "tests/fixtures/vendor_a.synthetic.xlsx",
+    "tests/fixtures/vendor_b.synthetic.xlsx"
+  ],
+  "vendor_type": "example_vendor",
+  "output_path": "data/output.synthetic.xlsx",
+  "run_sql": false
+}
