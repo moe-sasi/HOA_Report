@@ -116,3 +116,8 @@ def test_write_report_from_template_creates_required_sheets_and_preserves_header
     assert style_id_row_2 != 0
     assert report_sheet.cell(row=3, column=1).style_id == style_id_row_2
     assert report_sheet.cell(row=4, column=1).style_id == style_id_row_2
+
+    hoa_payment_col_idx = TEMPLATE_REPORT_COLUMNS.index("HOA Monthly Payment") + 1
+    assert report_sheet.cell(row=2, column=hoa_payment_col_idx).number_format == "0.00"
+    assert report_sheet.cell(row=3, column=hoa_payment_col_idx).number_format == "0.00"
+    assert report_sheet.cell(row=4, column=hoa_payment_col_idx).number_format == "0.00"

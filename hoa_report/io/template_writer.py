@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import copy
+import numbers
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,9 @@ import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
+
+_HOA_PAYMENT_HEADER = "HOA Monthly Payment"
+_HOA_PAYMENT_NUMBER_FORMAT = "0.00"
 
 
 def _to_excel_value(value: Any) -> Any:
@@ -90,6 +94,14 @@ def _clear_existing_report_values(
     for row_idx in range(start_row, end_row + 1):
         for col_idx in range(1, col_count + 1):
             sheet.cell(row=row_idx, column=col_idx).value = None
+
+
+def _is_numeric_hoa_payment(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if not isinstance(value, numbers.Real):
+        return False
+    return not bool(pd.isna(value))
 
 
 def _write_dataframe(
@@ -203,6 +215,11 @@ def write_report_from_template(
     start_row = 2
     report_col_count = int(len(report_df.columns))
     template_max_row = report_sheet.max_row
+    hoa_payment_col_offset = (
+        int(report_df.columns.get_loc(_HOA_PAYMENT_HEADER))
+        if _HOA_PAYMENT_HEADER in report_df.columns
+        else None
+    )
 
     if report_col_count:
         _clear_existing_report_values(
@@ -237,11 +254,18 @@ def write_report_from_template(
                 )
 
             for col_offset, value in enumerate(row_values):
-                report_sheet.cell(
+                excel_value = _to_excel_value(value)
+                target_cell = report_sheet.cell(
                     row=target_row,
                     column=1 + col_offset,
-                    value=_to_excel_value(value),
+                    value=excel_value,
                 )
+                if (
+                    hoa_payment_col_offset is not None
+                    and col_offset == hoa_payment_col_offset
+                    and _is_numeric_hoa_payment(excel_value)
+                ):
+                    target_cell.number_format = _HOA_PAYMENT_NUMBER_FORMAT
 
     qa_sheet = _replace_sheet(workbook, "QA Summary")
     _write_dataframe(qa_sheet, qa_df if qa_df is not None else pd.DataFrame())
