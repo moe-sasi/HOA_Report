@@ -64,6 +64,7 @@ def test_build_template_report_df_maps_canonical_fields_and_hoa_flag() -> None:
     assert report_df["HOA Monthly Payment"].iloc[0] == 125.0
     assert report_df["HOA Monthly Payment"].iloc[1] == 0.0
     assert pd.isna(report_df["HOA Monthly Payment"].iloc[2])
+    assert report_df["Securitized Balance"].tolist() == [100000.0, 200000.0, 300000.0]
     assert report_df["HOA"].tolist() == ["Y", "N", ""]
 
 
@@ -98,3 +99,18 @@ def test_build_template_report_df_prefers_loan_id_when_semt_id_column_is_blank()
     report_df = build_template_report_df(loan_master_df_enriched)
 
     assert report_df["SEMT ID"].tolist() == ["LN1", "LN2", "LN3"]
+
+
+def test_build_template_report_df_prefers_current_loan_amount_for_securitized_balance() -> None:
+    loan_master_df_enriched = pd.DataFrame(
+        {
+            "loan_id": ["LN1", "LN2"],
+            "Current Loan AMount": [111111.0, 222222.0],
+            "Securitized Balance": ["", ""],
+            "securitized_balance": [999999.0, 888888.0],
+        }
+    )
+
+    report_df = build_template_report_df(loan_master_df_enriched)
+
+    assert report_df["Securitized Balance"].tolist() == [111111.0, 222222.0]

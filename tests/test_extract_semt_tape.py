@@ -26,6 +26,7 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
             "Loan Number": [" L-1001.0 ", "   ", "AB-22", "ab22", None],
             "DD Firm": ["Firm A", "Drop Firm", "Firm B", "   ", "Drop Firm 2"],
             "Review Status": ["Pass", "Drop", "Manual", None, "Drop 2"],
+            "Current Loan AMount": [101000, 999999, 202000, " ", 303000],
             "D": ["x", "x", "x", "x", "x"],
             "E": ["x", "x", "x", "x", "x"],
             "F": ["x", "x", "x", "x", "x"],
@@ -43,6 +44,9 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
     assert loan_master_df["hoa_source_file"].tolist() == [str(tape_path), str(tape_path), str(tape_path)]
     assert loan_master_df["dd_firm"].tolist() == ["Firm A", "Firm B", None]
     assert loan_master_df["dd_review_type"].tolist() == ["Pass", "Manual", None]
+    assert loan_master_df["current_loan_amount"].iloc[0] == 101000
+    assert loan_master_df["current_loan_amount"].iloc[1] == 202000
+    assert pd.isna(loan_master_df["current_loan_amount"].iloc[2])
     for column in HOA_WIDE_CANONICAL_COLUMNS:
         if column in {"hoa_source", "hoa_source_file"}:
             continue
@@ -55,6 +59,7 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
     assert tape_qa["duplicate_loan_ids"] == ["AB22"]
     assert tape_qa["dd_firm_column"] == "DD Firm"
     assert tape_qa["review_status_column"] == "Review Status"
+    assert tape_qa["current_loan_amount_column"] == "Current Loan AMount"
 
 
 def test_extract_semt_tape_falls_back_to_column_g() -> None:
@@ -81,6 +86,7 @@ def test_extract_semt_tape_falls_back_to_column_g() -> None:
     assert loan_master_df["hoa_source_file"].tolist() == [str(tape_path), str(tape_path)]
     assert loan_master_df["dd_firm"].isna().all()
     assert loan_master_df["dd_review_type"].isna().all()
+    assert loan_master_df["current_loan_amount"].isna().all()
     for column in HOA_WIDE_CANONICAL_COLUMNS:
         if column in {"hoa_source", "hoa_source_file"}:
             continue
@@ -91,6 +97,7 @@ def test_extract_semt_tape_falls_back_to_column_g() -> None:
     assert tape_qa["dropped_blank_loan_number_rows"] == 1
     assert tape_qa["dd_firm_column"] is None
     assert tape_qa["review_status_column"] is None
+    assert tape_qa["current_loan_amount_column"] is None
 
 
 def test_extract_semt_tape_maps_due_diligence_alias_headers() -> None:
@@ -99,6 +106,7 @@ def test_extract_semt_tape_maps_due_diligence_alias_headers() -> None:
             "Loan Number": ["L-1", "L-2"],
             "DueDiligenceVendor": ["Firm X", "Firm Y"],
             "SubLoanReviewType": ["Complete", "Pending"],
+            "CurrentLoanAmount": [150000, 250000],
         }
     )
     tape_path = _write_synthetic_tape("semt_dd_alias.synthetic.xlsx", df)
@@ -108,8 +116,10 @@ def test_extract_semt_tape_maps_due_diligence_alias_headers() -> None:
     assert loan_master_df["loan_id"].tolist() == ["L1", "L2"]
     assert loan_master_df["dd_firm"].tolist() == ["Firm X", "Firm Y"]
     assert loan_master_df["dd_review_type"].tolist() == ["Complete", "Pending"]
+    assert loan_master_df["current_loan_amount"].tolist() == [150000, 250000]
     assert tape_qa["dd_firm_column"] == "DueDiligenceVendor"
     assert tape_qa["review_status_column"] == "SubLoanReviewType"
+    assert tape_qa["current_loan_amount_column"] == "CurrentLoanAmount"
 
 
 def test_extract_semt_tape_fails_when_fallback_column_g_does_not_exist() -> None:

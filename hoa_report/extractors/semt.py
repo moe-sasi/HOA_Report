@@ -26,6 +26,12 @@ _REVIEW_STATUS_ALIASES: tuple[str, ...] = (
     "dd_review_type",
     "review_status",
 )
+_CURRENT_LOAN_AMOUNT_ALIASES: tuple[str, ...] = (
+    "Current Loan AMount",
+    "Current Loan Amount",
+    "CurrentLoanAmount",
+    "current_loan_amount",
+)
 
 
 def _is_blank(value: Any) -> bool:
@@ -124,8 +130,13 @@ def extract_semt_tape(tape_path: str | Path) -> tuple[pd.DataFrame, dict[str, An
         df=extracted_rows,
         aliases=_REVIEW_STATUS_ALIASES,
     )
+    current_loan_amount_values, current_loan_amount_column = _extract_optional_column_values(
+        df=extracted_rows,
+        aliases=_CURRENT_LOAN_AMOUNT_ALIASES,
+    )
     canonical_hoa_df["dd_firm"] = dd_firm_values.to_numpy(copy=False)
     canonical_hoa_df["dd_review_type"] = review_status_values.to_numpy(copy=False)
+    canonical_hoa_df["current_loan_amount"] = current_loan_amount_values.to_numpy(copy=False)
 
     duplicate_ids = sorted(loan_ids.loc[duplicate_mask].dropna().unique().tolist())
     tape_qa = {
@@ -139,5 +150,6 @@ def extract_semt_tape(tape_path: str | Path) -> tuple[pd.DataFrame, dict[str, An
         "duplicate_loan_ids": duplicate_ids,
         "dd_firm_column": dd_firm_column,
         "review_status_column": review_status_column,
+        "current_loan_amount_column": current_loan_amount_column,
     }
     return canonical_hoa_df, tape_qa

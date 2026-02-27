@@ -69,6 +69,10 @@ _TEMPLATE_SOURCE_ALIASES: dict[str, tuple[str, ...]] = {
         "monthly_dues",
     ),
     "Securitized Balance": (
+        "Current Loan AMount",
+        "Current Loan Amount",
+        "CurrentLoanAmount",
+        "current_loan_amount",
         "Securitized Balance",
         "securitized_balance",
         "current_balance",
