@@ -602,7 +602,4 @@ def test_cli_runs_multi_vendor_with_collateral_id_mapping_and_priority(
     assert report_sheet.cell(row=4, column=hoa_col_idx).value == "N"
     assert report_sheet.cell(row=4, column=hoa_payment_col_idx).value == 0.0
 
-    assert "Missing in clayton" in workbook.sheetnames
-    assert "Extra in clayton" in workbook.sheetnames
-    assert any(name.startswith("Missing in consolidated") for name in workbook.sheetnames)
-    assert any(name.startswith("Extra in consolidated") for name in workbook.sheetnames)
+    assert set(workbook.sheetnames) == {"Sheet1", "QA Summary"}

@@ -50,7 +50,7 @@ def _count_non_blank_rows(sheet, start_row: int, col_count: int) -> int:
     return count
 
 
-def test_write_report_from_template_creates_required_sheets_and_preserves_header_and_row_count(
+def test_write_report_from_template_keeps_only_main_and_qa_sheets_and_preserves_header_and_row_count(
 ) -> None:
     _TEST_TMP_DIR.mkdir(parents=True, exist_ok=True)
     template_path = _TEST_TMP_DIR / "template.generated.writer.xlsx"
@@ -87,16 +87,7 @@ def test_write_report_from_template_creates_required_sheets_and_preserves_header
     )
 
     workbook = load_workbook(output_path)
-    assert {
-        "Sheet1",
-        "QA Summary",
-        "Missing in Vendor",
-        "Extra in Vendor",
-        "Missing in vendor_a",
-        "Extra in vendor_a",
-    }.issubset(
-        set(workbook.sheetnames)
-    )
+    assert set(workbook.sheetnames) == {"Sheet1", "QA Summary"}
 
     report_sheet = workbook["Sheet1"]
     headers = [

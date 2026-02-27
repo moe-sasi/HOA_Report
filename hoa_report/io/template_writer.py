@@ -13,6 +13,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 _HOA_PAYMENT_HEADER = "HOA Monthly Payment"
 _HOA_PAYMENT_NUMBER_FORMAT = "0.00"
+_VISIBLE_OUTPUT_SHEETS = frozenset({"Sheet1", "QA Summary"})
 
 
 def _to_excel_value(value: Any) -> Any:
@@ -137,6 +138,12 @@ def _replace_sheet(workbook: Workbook, title: str) -> Worksheet:
         workbook.remove(existing)
         return workbook.create_sheet(title=title, index=sheet_index)
     return workbook.create_sheet(title=title)
+
+
+def _set_sheet_visibility(workbook: Workbook, visible_titles: set[str] | frozenset[str]) -> None:
+    for title in workbook.sheetnames:
+        sheet = workbook[title]
+        sheet.sheet_state = "visible" if title in visible_titles else "hidden"
 
 
 def _build_exception_rows(
@@ -270,40 +277,9 @@ def write_report_from_template(
     qa_sheet = _replace_sheet(workbook, "QA Summary")
     _write_dataframe(qa_sheet, qa_df if qa_df is not None else pd.DataFrame())
 
-    safe_exceptions: Mapping[str, Mapping[str, Any]] = exceptions or {}
-    missing_sheet = _replace_sheet(workbook, "Missing in Vendor")
-    extra_sheet = _replace_sheet(workbook, "Extra in Vendor")
-    _write_dataframe(
-        missing_sheet,
-        _build_exception_rows(safe_exceptions, "missing_in_vendor"),
-        default_headers=["Vendor", "Loan ID"],
-    )
-    _write_dataframe(
-        extra_sheet,
-        _build_exception_rows(safe_exceptions, "extra_in_vendor"),
-        default_headers=["Vendor", "Loan ID"],
-    )
-
-    existing_titles = {"Sheet1", "QA Summary", "Missing in Vendor", "Extra in Vendor"}
-    for vendor, exception_values in safe_exceptions.items():
-        missing_vendor_sheet = _replace_sheet(
-            workbook,
-            _resolve_vendor_sheet_title("Missing in", str(vendor), existing_titles),
-        )
-        extra_vendor_sheet = _replace_sheet(
-            workbook,
-            _resolve_vendor_sheet_title("Extra in", str(vendor), existing_titles),
-        )
-        _write_dataframe(
-            missing_vendor_sheet,
-            _build_vendor_exception_rows(exception_values, "missing_in_vendor"),
-            default_headers=["Loan ID"],
-        )
-        _write_dataframe(
-            extra_vendor_sheet,
-            _build_vendor_exception_rows(exception_values, "extra_in_vendor"),
-            default_headers=["Loan ID"],
-        )
+    # Keep exception details in-memory for QA/console reporting only.
+    _ = exceptions
+    _set_sheet_visibility(workbook, _VISIBLE_OUTPUT_SHEETS)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output)
