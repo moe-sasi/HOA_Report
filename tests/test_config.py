@@ -139,3 +139,35 @@ def test_load_config_reads_sql_query_path_override() -> None:
     config = load_config(config_path)
     assert config.sql is not None
     assert config.sql.query_path == Path("sql/custom.sql")
+
+
+def test_load_config_resolves_output_path_template_with_deal_id() -> None:
+    config_path = _write_config(
+        "config.output_path.template.deal_id.json",
+        {
+            "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+            "template_path": "tests/fixtures/template.synthetic.xlsx",
+            "deal_id": "2026-3",
+            "vendor_paths": ["tests/fixtures/vendor_a.synthetic.xlsx"],
+            "output_path": "data/SEMT {deal_id} Servicer HOA.xlsx",
+        },
+    )
+
+    config = load_config(config_path)
+    assert config.deal_id == "2026-3"
+    assert config.output_path == Path("data/SEMT 2026-3 Servicer HOA.xlsx")
+
+
+def test_load_config_defaults_output_path_from_deal_id_when_unspecified() -> None:
+    config_path = _write_config(
+        "config.output_path.default.deal_id.json",
+        {
+            "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+            "template_path": "tests/fixtures/template.synthetic.xlsx",
+            "deal_id": "2026-3",
+            "vendor_paths": ["tests/fixtures/vendor_a.synthetic.xlsx"],
+        },
+    )
+
+    config = load_config(config_path)
+    assert config.output_path == Path("data/SEMT 2026-3 Servicer HOA.xlsx")

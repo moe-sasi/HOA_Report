@@ -107,6 +107,7 @@ def _build_effective_config(config: InputConfig, args: argparse.Namespace) -> In
     return InputConfig(
         tape_path=tape_path,
         template_path=template_path,
+        deal_id=config.deal_id,
         vendors=vendors,
         vendor_priority=vendor_priority,
         output_path=output_path,

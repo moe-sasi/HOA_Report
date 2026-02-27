@@ -1,5 +1,6 @@
 {
   "tape_path": "I:\\Residential_Conduit\\Sequoia\\Sequoia_2026-3\\Collateral\\SEMT_2026-3_02062026(RA).xlsx",
+  "deal_id": "2026-3",
   "template_path": "C:\\Users\\moe.sasi\\OneDrive - Redwood Trust, Inc\\Documents\\Python\\HOA_Report\\SEMT {YYYY}-{SEMTID} - Servicer - HOA - TEMPLATE.xlsx",
   "vendors": [
     {
@@ -16,11 +17,10 @@
     }
   ],
   "vendor_priority": ["clayton", "consolidated_analytics"],
-  "output_path": "data/output.xlsx",
+  "output_path": "data/SEMT {deal_id} Servicer HOA.xlsx",
   "run_sql": true,
   "sql": {
     "connection_string": "mssql+pyodbc://@RTSQLGEN01/LOANDATA?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes",
     "query_path": "sql/hoa_enrich.sql"
   }
 }
-

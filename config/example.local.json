@@ -1,5 +1,6 @@
 {
   "tape_path": "tests/fixtures/tape.synthetic.xlsx",
+  "deal_id": "2026-3",
   "template_path": "tests/fixtures/template.synthetic.xlsx",
   "vendors": [
     {
@@ -16,7 +17,7 @@
     }
   ],
   "vendor_priority": ["clayton", "consolidated_analytics"],
-  "output_path": "data/output.synthetic.xlsx",
+  "output_path": "data/SEMT {deal_id} Servicer HOA.xlsx",
   "run_sql": true,
   "sql": {
     "connection_string": "mssql+pyodbc://@RTSQLGEN01/LOANDATA?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes",

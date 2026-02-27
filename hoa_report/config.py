@@ -24,6 +24,7 @@ class VendorInputConfig:
 class InputConfig:
     tape_path: Path
     template_path: Path
+    deal_id: str | None = None
     vendors: list[VendorInputConfig] = field(default_factory=list)
     vendor_priority: list[str] = field(default_factory=list)
     output_path: Path = Path("data/output.xlsx")
@@ -45,6 +46,18 @@ def _require_str_value(value: object, label: str) -> str:
 
 
 _SUPPORTED_MATCH_KEYS: tuple[str, ...] = ("loan_id", "collateral_id")
+
+
+def _resolve_output_path(raw_output_path: object, deal_id: str | None) -> Path:
+    if raw_output_path is None:
+        if deal_id:
+            return Path(f"data/SEMT {deal_id} Servicer HOA.xlsx")
+        return Path("data/output.xlsx")
+
+    output_path_str = _require_str_value(raw_output_path, "output_path")
+    if deal_id:
+        output_path_str = output_path_str.replace("{deal_id}", deal_id)
+    return Path(output_path_str)
 
 
 def _parse_vendors(raw: dict[str, Any]) -> list[VendorInputConfig]:
@@ -149,13 +162,16 @@ def load_config(path: Path) -> InputConfig:
 
     tape_path = Path(_require_str(raw, "tape_path"))
     template_path = Path(_require_str(raw, "template_path"))
+    deal_id = raw.get("deal_id")
+    if deal_id is not None:
+        deal_id = _require_str_value(deal_id, "deal_id")
     vendors = _parse_vendors(raw)
     vendor_priority = _resolve_vendor_priority(
         vendors=vendors,
         raw_priority=raw.get("vendor_priority"),
     )
 
-    output_path = Path(raw.get("output_path", "data/output.xlsx"))
+    output_path = _resolve_output_path(raw.get("output_path"), deal_id)
     run_sql = bool(raw.get("run_sql", False))
 
     sql_config = None
@@ -174,6 +190,7 @@ def load_config(path: Path) -> InputConfig:
     return InputConfig(
         tape_path=tape_path,
         template_path=template_path,
+        deal_id=deal_id,
         vendors=vendors,
         vendor_priority=vendor_priority,
         output_path=output_path,

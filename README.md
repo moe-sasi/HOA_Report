@@ -50,6 +50,15 @@ Vendor inputs are configured with `vendors[]` plus deterministic `vendor_priorit
 `match_key` controls vendor-ID mapping (`loan_id` or `collateral_id`), and
 priority order controls blank-only fill precedence when multiple vendors provide values.
 
+Set `deal_id` in config and use `output_path` with `{deal_id}` to stamp the output filename:
+
+```json
+{
+  "deal_id": "2026-3",
+  "output_path": "data/SEMT {deal_id} Servicer HOA.xlsx"
+}
+```
+
 Path overrides are available at runtime:
 
 ```bash

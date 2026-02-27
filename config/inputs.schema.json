@@ -5,6 +5,11 @@
   "additionalProperties": false,
   "required": ["tape_path", "template_path"],
   "properties": {
+    "deal_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deal identifier used in output naming (example: 2026-3)"
+    },
     "tape_path": {
       "type": "string",
       "minLength": 1,
@@ -66,7 +71,7 @@
     },
     "output_path": {
       "type": "string",
-      "default": "data/output.xlsx"
+      "default": "data/SEMT {deal_id} Servicer HOA.xlsx"
     },
     "run_sql": {
       "type": "boolean",

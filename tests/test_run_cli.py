@@ -144,6 +144,41 @@ def test_cli_errors_when_override_path_does_not_exist(capsys: pytest.CaptureFixt
     assert "do not exist" in captured.err
 
 
+def test_cli_resolves_deal_id_in_output_filename(capsys: pytest.CaptureFixture[str]) -> None:
+    tape_path = _write_tape_fixture("run_cli.deal_id.tape.synthetic.xlsx")
+    template_path = _write_template_fixture("run_cli.deal_id.template.synthetic.xlsx")
+    vendor_path = _write_vendor_fixture(
+        "run_cli.deal_id.vendor.synthetic.xlsx",
+        [
+            {"Loan Number": "L-1001", "Monthly Dues": 125.0},
+            {"Loan Number": "L-1002", "Monthly Dues": 225.0},
+        ],
+    )
+
+    deal_id = f"2026-3-{uuid4().hex[:8]}"
+    output_template_path = _TEST_TMP_DIR / "SEMT {deal_id} Servicer HOA.xlsx"
+    expected_output_path = _TEST_TMP_DIR / f"SEMT {deal_id} Servicer HOA.xlsx"
+
+    config_path = _write_config(
+        "run_cli.deal_id.config.json",
+        {
+            "tape_path": str(tape_path),
+            "template_path": str(template_path),
+            "deal_id": deal_id,
+            "vendor_paths": [str(vendor_path)],
+            "vendor_type": "example_vendor",
+            "output_path": str(output_template_path),
+        },
+    )
+
+    exit_code = main(["--config", str(config_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert expected_output_path.exists()
+    assert f"Output written to: {expected_output_path}" in captured.out
+
+
 def test_cli_runs_sql_enrichment_with_connection_string(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
