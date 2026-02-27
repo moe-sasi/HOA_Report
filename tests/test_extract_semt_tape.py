@@ -24,6 +24,8 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
             "A": ["first", "drop-blank", "third", "fourth", "drop-none"],
             "B": [1, 2, 3, 4, 5],
             "Loan Number": [" L-1001.0 ", "   ", "AB-22", "ab22", None],
+            "DD Firm": ["Firm A", "Drop Firm", "Firm B", "   ", "Drop Firm 2"],
+            "Review Status": ["Pass", "Drop", "Manual", None, "Drop 2"],
             "D": ["x", "x", "x", "x", "x"],
             "E": ["x", "x", "x", "x", "x"],
             "F": ["x", "x", "x", "x", "x"],
@@ -34,10 +36,13 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
 
     loan_master_df, tape_qa = extract_semt_tape(tape_path)
 
-    assert loan_master_df.columns.tolist() == list(HOA_EXTRACTOR_COLUMNS)
+    assert loan_master_df.columns.tolist()[: len(HOA_EXTRACTOR_COLUMNS)] == list(HOA_EXTRACTOR_COLUMNS)
+    assert {"dd_firm", "dd_review_type"}.issubset(loan_master_df.columns)
     assert loan_master_df["loan_id"].tolist() == ["L1001", "AB22", "AB22"]
     assert loan_master_df["hoa_source"].tolist() == ["semt_tape", "semt_tape", "semt_tape"]
     assert loan_master_df["hoa_source_file"].tolist() == [str(tape_path), str(tape_path), str(tape_path)]
+    assert loan_master_df["dd_firm"].tolist() == ["Firm A", "Firm B", None]
+    assert loan_master_df["dd_review_type"].tolist() == ["Pass", "Manual", None]
     for column in HOA_WIDE_CANONICAL_COLUMNS:
         if column in {"hoa_source", "hoa_source_file"}:
             continue
@@ -48,6 +53,8 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
     assert tape_qa["dropped_blank_loan_number_rows"] == 2
     assert tape_qa["duplicate_loan_id_count"] == 2
     assert tape_qa["duplicate_loan_ids"] == ["AB22"]
+    assert tape_qa["dd_firm_column"] == "DD Firm"
+    assert tape_qa["review_status_column"] == "Review Status"
 
 
 def test_extract_semt_tape_falls_back_to_column_g() -> None:
@@ -67,10 +74,13 @@ def test_extract_semt_tape_falls_back_to_column_g() -> None:
 
     loan_master_df, tape_qa = extract_semt_tape(tape_path)
 
-    assert loan_master_df.columns.tolist() == list(HOA_EXTRACTOR_COLUMNS)
+    assert loan_master_df.columns.tolist()[: len(HOA_EXTRACTOR_COLUMNS)] == list(HOA_EXTRACTOR_COLUMNS)
+    assert {"dd_firm", "dd_review_type"}.issubset(loan_master_df.columns)
     assert loan_master_df["loan_id"].tolist() == ["LN1", "LN3"]
     assert loan_master_df["hoa_source"].tolist() == ["semt_tape", "semt_tape"]
     assert loan_master_df["hoa_source_file"].tolist() == [str(tape_path), str(tape_path)]
+    assert loan_master_df["dd_firm"].isna().all()
+    assert loan_master_df["dd_review_type"].isna().all()
     for column in HOA_WIDE_CANONICAL_COLUMNS:
         if column in {"hoa_source", "hoa_source_file"}:
             continue
@@ -79,6 +89,27 @@ def test_extract_semt_tape_falls_back_to_column_g() -> None:
     assert tape_qa["loan_number_resolution"] == "column_g_fallback"
     assert tape_qa["loan_number_column"] == "G_value"
     assert tape_qa["dropped_blank_loan_number_rows"] == 1
+    assert tape_qa["dd_firm_column"] is None
+    assert tape_qa["review_status_column"] is None
+
+
+def test_extract_semt_tape_maps_due_diligence_alias_headers() -> None:
+    df = pd.DataFrame(
+        {
+            "Loan Number": ["L-1", "L-2"],
+            "DueDiligenceVendor": ["Firm X", "Firm Y"],
+            "SubLoanReviewType": ["Complete", "Pending"],
+        }
+    )
+    tape_path = _write_synthetic_tape("semt_dd_alias.synthetic.xlsx", df)
+
+    loan_master_df, tape_qa = extract_semt_tape(tape_path)
+
+    assert loan_master_df["loan_id"].tolist() == ["L1", "L2"]
+    assert loan_master_df["dd_firm"].tolist() == ["Firm X", "Firm Y"]
+    assert loan_master_df["dd_review_type"].tolist() == ["Complete", "Pending"]
+    assert tape_qa["dd_firm_column"] == "DueDiligenceVendor"
+    assert tape_qa["review_status_column"] == "SubLoanReviewType"
 
 
 def test_extract_semt_tape_fails_when_fallback_column_g_does_not_exist() -> None:

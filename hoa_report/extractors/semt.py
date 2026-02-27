@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import pandas as pd
@@ -10,6 +11,21 @@ from hoa_report.qa import normalize_loan_id
 
 _LOAN_NUMBER_HEADER = "Loan Number"
 _LOAN_NUMBER_FALLBACK_INDEX = 6  # column G (1-based)
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_DD_FIRM_ALIASES: tuple[str, ...] = (
+    "DD Firm",
+    "DueDiligenceVendor",
+    "Due Diligence Vendor",
+    "dd_firm",
+    "due_diligence_vendor",
+)
+_REVIEW_STATUS_ALIASES: tuple[str, ...] = (
+    "Review Status",
+    "DD Review Type",
+    "SubLoanReviewType",
+    "dd_review_type",
+    "review_status",
+)
 
 
 def _is_blank(value: Any) -> bool:
@@ -18,6 +34,47 @@ def _is_blank(value: Any) -> bool:
     if isinstance(value, str):
         return not value.strip()
     return bool(pd.isna(value))
+
+
+def _normalize_column_key(value: object) -> str:
+    return _NON_ALNUM.sub("", str(value).strip().lower())
+
+
+def _build_column_lookup(columns: pd.Index) -> dict[str, object]:
+    lookup: dict[str, object] = {}
+    for column in columns:
+        key = _normalize_column_key(column)
+        if key and key not in lookup:
+            lookup[key] = column
+    return lookup
+
+
+def _resolve_optional_column(df: pd.DataFrame, aliases: tuple[str, ...]) -> object | None:
+    column_lookup = _build_column_lookup(df.columns)
+    for alias in aliases:
+        key = _normalize_column_key(alias)
+        if key in column_lookup:
+            return column_lookup[key]
+    return None
+
+
+def _clean_optional_text(value: object) -> object | None:
+    if _is_blank(value):
+        return None
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
+def _extract_optional_column_values(
+    *,
+    df: pd.DataFrame,
+    aliases: tuple[str, ...],
+) -> tuple[pd.Series, str | None]:
+    resolved_column = _resolve_optional_column(df, aliases)
+    if resolved_column is None:
+        return pd.Series([None] * len(df), index=df.index, dtype=object), None
+    return df[resolved_column].map(_clean_optional_text), str(resolved_column)
 
 
 def _resolve_loan_number_column(df: pd.DataFrame) -> tuple[object, str]:
@@ -59,6 +116,16 @@ def extract_semt_tape(tape_path: str | Path) -> tuple[pd.DataFrame, dict[str, An
         hoa_source="semt_tape",
         hoa_source_file=str(tape_path),
     )
+    dd_firm_values, dd_firm_column = _extract_optional_column_values(
+        df=extracted_rows,
+        aliases=_DD_FIRM_ALIASES,
+    )
+    review_status_values, review_status_column = _extract_optional_column_values(
+        df=extracted_rows,
+        aliases=_REVIEW_STATUS_ALIASES,
+    )
+    canonical_hoa_df["dd_firm"] = dd_firm_values.to_numpy(copy=False)
+    canonical_hoa_df["dd_review_type"] = review_status_values.to_numpy(copy=False)
 
     duplicate_ids = sorted(loan_ids.loc[duplicate_mask].dropna().unique().tolist())
     tape_qa = {
@@ -70,5 +137,7 @@ def extract_semt_tape(tape_path: str | Path) -> tuple[pd.DataFrame, dict[str, An
         "loan_number_resolution": resolution,
         "duplicate_loan_id_count": int(duplicate_mask.sum()),
         "duplicate_loan_ids": duplicate_ids,
+        "dd_firm_column": dd_firm_column,
+        "review_status_column": review_status_column,
     }
     return canonical_hoa_df, tape_qa
