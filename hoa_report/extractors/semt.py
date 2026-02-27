@@ -32,6 +32,13 @@ _CURRENT_LOAN_AMOUNT_ALIASES: tuple[str, ...] = (
     "CurrentLoanAmount",
     "current_loan_amount",
 )
+_INTEREST_PAID_THROUGH_DATE_ALIASES: tuple[str, ...] = (
+    "Interest Paid Through Date",
+    "Interest Paid Thru Date",
+    "InterestPaidThroughDate",
+    "interest_paid_through_date",
+    "interest_paid_thru_date",
+)
 
 
 def _is_blank(value: Any) -> bool:
@@ -81,6 +88,12 @@ def _extract_optional_column_values(
     if resolved_column is None:
         return pd.Series([None] * len(df), index=df.index, dtype=object), None
     return df[resolved_column].map(_clean_optional_text), str(resolved_column)
+
+
+def _derive_next_due_date(interest_paid_through_values: pd.Series) -> pd.Series:
+    parsed_dates = pd.to_datetime(interest_paid_through_values, errors="coerce")
+    next_due_dates = parsed_dates + pd.DateOffset(months=1)
+    return next_due_dates.map(lambda value: value.date() if not pd.isna(value) else None)
 
 
 def _resolve_loan_number_column(df: pd.DataFrame) -> tuple[object, str]:
@@ -134,9 +147,16 @@ def extract_semt_tape(tape_path: str | Path) -> tuple[pd.DataFrame, dict[str, An
         df=extracted_rows,
         aliases=_CURRENT_LOAN_AMOUNT_ALIASES,
     )
+    interest_paid_through_values, interest_paid_through_date_column = _extract_optional_column_values(
+        df=extracted_rows,
+        aliases=_INTEREST_PAID_THROUGH_DATE_ALIASES,
+    )
     canonical_hoa_df["dd_firm"] = dd_firm_values.to_numpy(copy=False)
     canonical_hoa_df["dd_review_type"] = review_status_values.to_numpy(copy=False)
     canonical_hoa_df["current_loan_amount"] = current_loan_amount_values.to_numpy(copy=False)
+    canonical_hoa_df["securitized_next_due_date"] = _derive_next_due_date(
+        interest_paid_through_values
+    ).to_numpy(copy=False)
 
     duplicate_ids = sorted(loan_ids.loc[duplicate_mask].dropna().unique().tolist())
     tape_qa = {
@@ -151,5 +171,6 @@ def extract_semt_tape(tape_path: str | Path) -> tuple[pd.DataFrame, dict[str, An
         "dd_firm_column": dd_firm_column,
         "review_status_column": review_status_column,
         "current_loan_amount_column": current_loan_amount_column,
+        "interest_paid_through_date_column": interest_paid_through_date_column,
     }
     return canonical_hoa_df, tape_qa

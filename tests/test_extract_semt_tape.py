@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -27,6 +28,7 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
             "DD Firm": ["Firm A", "Drop Firm", "Firm B", "   ", "Drop Firm 2"],
             "Review Status": ["Pass", "Drop", "Manual", None, "Drop 2"],
             "Current Loan AMount": [101000, 999999, 202000, " ", 303000],
+            "Interest Paid Through Date": ["2026-01-15", "2026-02-01", "2026-01-31", " ", "2026-03-10"],
             "D": ["x", "x", "x", "x", "x"],
             "E": ["x", "x", "x", "x", "x"],
             "F": ["x", "x", "x", "x", "x"],
@@ -47,6 +49,7 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
     assert loan_master_df["current_loan_amount"].iloc[0] == 101000
     assert loan_master_df["current_loan_amount"].iloc[1] == 202000
     assert pd.isna(loan_master_df["current_loan_amount"].iloc[2])
+    assert loan_master_df["securitized_next_due_date"].tolist() == [date(2026, 2, 15), date(2026, 2, 28), None]
     for column in HOA_WIDE_CANONICAL_COLUMNS:
         if column in {"hoa_source", "hoa_source_file"}:
             continue
@@ -60,6 +63,7 @@ def test_extract_semt_tape_uses_exact_loan_number_header_first() -> None:
     assert tape_qa["dd_firm_column"] == "DD Firm"
     assert tape_qa["review_status_column"] == "Review Status"
     assert tape_qa["current_loan_amount_column"] == "Current Loan AMount"
+    assert tape_qa["interest_paid_through_date_column"] == "Interest Paid Through Date"
 
 
 def test_extract_semt_tape_falls_back_to_column_g() -> None:
@@ -87,6 +91,7 @@ def test_extract_semt_tape_falls_back_to_column_g() -> None:
     assert loan_master_df["dd_firm"].isna().all()
     assert loan_master_df["dd_review_type"].isna().all()
     assert loan_master_df["current_loan_amount"].isna().all()
+    assert loan_master_df["securitized_next_due_date"].isna().all()
     for column in HOA_WIDE_CANONICAL_COLUMNS:
         if column in {"hoa_source", "hoa_source_file"}:
             continue
@@ -98,6 +103,7 @@ def test_extract_semt_tape_falls_back_to_column_g() -> None:
     assert tape_qa["dd_firm_column"] is None
     assert tape_qa["review_status_column"] is None
     assert tape_qa["current_loan_amount_column"] is None
+    assert tape_qa["interest_paid_through_date_column"] is None
 
 
 def test_extract_semt_tape_maps_due_diligence_alias_headers() -> None:
@@ -107,6 +113,7 @@ def test_extract_semt_tape_maps_due_diligence_alias_headers() -> None:
             "DueDiligenceVendor": ["Firm X", "Firm Y"],
             "SubLoanReviewType": ["Complete", "Pending"],
             "CurrentLoanAmount": [150000, 250000],
+            "InterestPaidThroughDate": ["2026-03-30", "2026-04-30"],
         }
     )
     tape_path = _write_synthetic_tape("semt_dd_alias.synthetic.xlsx", df)
@@ -117,9 +124,11 @@ def test_extract_semt_tape_maps_due_diligence_alias_headers() -> None:
     assert loan_master_df["dd_firm"].tolist() == ["Firm X", "Firm Y"]
     assert loan_master_df["dd_review_type"].tolist() == ["Complete", "Pending"]
     assert loan_master_df["current_loan_amount"].tolist() == [150000, 250000]
+    assert loan_master_df["securitized_next_due_date"].tolist() == [date(2026, 4, 30), date(2026, 5, 30)]
     assert tape_qa["dd_firm_column"] == "DueDiligenceVendor"
     assert tape_qa["review_status_column"] == "SubLoanReviewType"
     assert tape_qa["current_loan_amount_column"] == "CurrentLoanAmount"
+    assert tape_qa["interest_paid_through_date_column"] == "InterestPaidThroughDate"
 
 
 def test_extract_semt_tape_fails_when_fallback_column_g_does_not_exist() -> None:
