@@ -27,6 +27,10 @@ _QA_PRINT_ORDER: tuple[tuple[str, str], ...] = (
 )
 _HOA_VALUE_HEADER = "HOA Monthly Payment"
 _HOA_FLAG_HEADER = "HOA"
+_REVIEW_STATUS_HEADER = "Review Status"
+_LIMITED_REVIEW_STATUS = "limited review"
+_LIMITED_REVIEW_HOA_FLAG = "TBD"
+_LIMITED_REVIEW_HOA_PAYMENT = "Limited Review - please refer to URAR"
 
 
 @dataclass(frozen=True)
@@ -290,6 +294,27 @@ def _should_default_blank_hoa_to_zero(vendor: VendorInputConfig) -> bool:
     return vendor.type.strip().lower() in {"dd_hoa", "consolidated_analytics"}
 
 
+def _is_limited_review(value: object) -> bool:
+    return isinstance(value, str) and value.strip().lower() == _LIMITED_REVIEW_STATUS
+
+
+def _apply_limited_review_overrides(report_df: pd.DataFrame) -> None:
+    if _REVIEW_STATUS_HEADER not in report_df.columns:
+        return
+
+    limited_review_mask = report_df[_REVIEW_STATUS_HEADER].map(_is_limited_review)
+    if not bool(limited_review_mask.any()):
+        return
+
+    if _HOA_VALUE_HEADER not in report_df.columns:
+        report_df[_HOA_VALUE_HEADER] = None
+    if _HOA_FLAG_HEADER not in report_df.columns:
+        report_df[_HOA_FLAG_HEADER] = ""
+
+    report_df.loc[limited_review_mask, _HOA_FLAG_HEADER] = _LIMITED_REVIEW_HOA_FLAG
+    report_df.loc[limited_review_mask, _HOA_VALUE_HEADER] = _LIMITED_REVIEW_HOA_PAYMENT
+
+
 def _fill_report_from_vendor(
     *,
     report_df: pd.DataFrame,
@@ -526,6 +551,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report_df["hoa_discrepancy_flag"] = tape_ids.map(
         lambda loan_id: bool(loan_id in discrepant_loan_ids) if loan_id is not None else False
     )
+    _apply_limited_review_overrides(report_df)
 
     qa_merged_df = pd.DataFrame(
         {

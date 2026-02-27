@@ -356,6 +356,70 @@ def test_cli_dd_hoa_defaults_blank_matched_values_to_zero(
     assert report_sheet.cell(row=4, column=hoa_payment_col_idx).value is None
 
 
+def test_cli_limited_review_hardcodes_hoa_fields(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _TEST_TMP_DIR.mkdir(parents=True, exist_ok=True)
+    tape_path = _TEST_TMP_DIR / "run_cli.limited_review.tape.synthetic.xlsx"
+    pd.DataFrame(
+        {
+            "Loan Number": ["L-1001", "L-1002", "L-1003"],
+            "Review Status": ["Pass", "Limited Review", "Limited Review"],
+        }
+    ).to_excel(tape_path, index=False)
+
+    template_path = _write_template_fixture("run_cli.limited_review.template.synthetic.xlsx")
+    dd_path = _write_vendor_fixture(
+        "run_cli.limited_review.vendor.synthetic.xlsx",
+        [
+            {"Loan Number": "L-1001", "Monthly HOA Dues ($)": "$125.00"},
+            {"Loan Number": "L-1002", "Monthly HOA Dues ($)": "$200.00"},
+            {"Loan Number": "X-9999", "Monthly HOA Dues ($)": "$300.00"},
+        ],
+    )
+    output_path = _TEST_TMP_DIR / f"run_cli.limited_review.output.{uuid4().hex}.xlsx"
+
+    config_path = _write_config(
+        "run_cli.limited_review.config.json",
+        {
+            "tape_path": str(tape_path),
+            "template_path": str(template_path),
+            "vendor_paths": [str(dd_path)],
+            "vendor_type": "dd_hoa",
+            "output_path": str(output_path),
+        },
+    )
+
+    exit_code = main(["--config", str(config_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert output_path.exists()
+    assert "QA Summary" in captured.out
+
+    workbook = load_workbook(output_path)
+    report_sheet = workbook["Sheet1"]
+
+    hoa_col_idx = TEMPLATE_REPORT_COLUMNS.index("HOA") + 1
+    hoa_payment_col_idx = TEMPLATE_REPORT_COLUMNS.index("HOA Monthly Payment") + 1
+
+    assert report_sheet.cell(row=2, column=hoa_col_idx).value == "Y"
+    assert report_sheet.cell(row=2, column=hoa_payment_col_idx).value == 125.0
+
+    assert report_sheet.cell(row=3, column=hoa_col_idx).value == "TBD"
+    assert (
+        report_sheet.cell(row=3, column=hoa_payment_col_idx).value
+        == "Limited Review - please refer to URAR"
+    )
+
+    # Override applies even when a Limited Review row has no matched vendor HOA amount.
+    assert report_sheet.cell(row=4, column=hoa_col_idx).value == "TBD"
+    assert (
+        report_sheet.cell(row=4, column=hoa_payment_col_idx).value
+        == "Limited Review - please refer to URAR"
+    )
+
+
 def test_cli_consolidated_analytics_defaults_blank_matched_values_to_zero(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
