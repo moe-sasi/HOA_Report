@@ -286,6 +286,10 @@ def _derive_hoa_flags_from_amounts(amounts: pd.Series) -> pd.Series:
     return flags
 
 
+def _should_default_blank_hoa_to_zero(vendor: VendorInputConfig) -> bool:
+    return vendor.type.strip().lower() in {"dd_hoa", "consolidated_analytics"}
+
+
 def _fill_report_from_vendor(
     *,
     report_df: pd.DataFrame,
@@ -311,6 +315,9 @@ def _fill_report_from_vendor(
         work_df["hoa_monthly_dues_amount"],
         errors="coerce",
     )
+    if _should_default_blank_hoa_to_zero(processed_vendor.config):
+        # DD-matched rows with blank HOA should default to 0.0 in output.
+        work_df["hoa_monthly_dues_amount"] = work_df["hoa_monthly_dues_amount"].fillna(0.0)
 
     loan_indexed = work_df.set_index("loan_id", drop=False)
     mapped_amount = tape_ids.map(loan_indexed["hoa_monthly_dues_amount"])
